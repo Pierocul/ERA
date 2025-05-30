@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animación Activada por Voz</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3rem;
+        }
+
+        .animation-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .circle {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid;
+            animation: breathe 3s ease-in-out infinite;
+        }
+
+        .circle-1 {
+            width: 60px;
+            height: 60px;
+            border-color: #e44445;
+            opacity: 0.8;
+            animation-delay: 0s;
+        }
+
+        .circle-2 {
+            width: 100px;
+            height: 100px;
+            border-color: #e44445;
+            opacity: 0.6;
+            animation-delay: 0.5s;
+        }
+
+        .circle-3 {
+            width: 140px;
+            height: 140px;
+            border-color: #e44445;
+            opacity: 0.4;
+            animation-delay: 1s;
+        }
+
+        .center-dot {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #e44445;
+            border-radius: 50%;
+            opacity: 0.9;
+        }
+
+        @keyframes breathe {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 0.4;
+            }
+            50% {
+                transform: scale(1.05);
+                opacity: 0.8;
+            }
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+            z-index: 10;
+        }
+
+        .microphone-btn {
+            background: #ffffff;
+            border: 3px solid #e44445;
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            color: #e44445;
+            font-size: 1.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .microphone-btn:hover {
+            transform: scale(1.05);
+            background: #fafafa;
+        }
+
+        .microphone-btn.active {
+            background: #e44445;
+            color: white;
+            animation: gentle-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes gentle-pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.02);
+            }
+        }
+
+        .status {
+            color: #666666;
+            font-size: 1rem;
+            text-align: center;
+            font-weight: 300;
+        }
+
+        .status.active {
+            color: #e44445;
+        }
+
+        .volume-indicator {
+            width: 150px;
+            height: 4px;
+            background: #f0f0f0;
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .volume-bar {
+            height: 100%;
+            background: #e44445;
+            width: 0%;
+            transition: width 0.2s ease;
+            border-radius: 2px;
+        }
+
+        /* Efectos de respuesta a voz */
+        .voice-active .circle {
+            animation-duration: 0.8s;
+        }
+
+        .voice-active .circle-1 {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        .voice-active .circle-2 {
+            opacity: 0.8;
+            transform: scale(1.08);
+        }
+
+        .voice-active .circle-3 {
+            opacity: 0.6;
+            transform: scale(1.06);
+        }
+
+        .voice-active .center-dot {
+            animation: dot-pulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes dot-pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.3);
+            }
+        }
+
+        /* Efectos suaves para interacción */
+        .gentle-hover {
+            transition: all 0.3s ease;
+        }
+
+        .gentle-hover:hover {
+            transform: scale(1.02);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="animation-container gentle-hover" id="animationContainer">
+            <div class="circle circle-3"></div>
+            <div class="circle circle-2"></div>
+            <div class="circle circle-1"></div>
+            <div class="center-dot"></div>
+        </div>
+        
+        <div class="controls">
+            <button class="microphone-btn" id="micBtn">🎤</button>
+            <div class="status" id="status">Toca para escuchar</div>
+            <div class="volume-indicator">
+                <div class="volume-bar" id="volumeBar"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let audioContext;
+        let analyser;
+        let microphone;
+        let isListening = false;
+        let animationFrame;
+
+        const micBtn = document.getElementById('micBtn');
+        const status = document.getElementById('status'); 
+        const volumeBar = document.getElementById('volumeBar');
+        const animationContainer = document.getElementById('animationContainer');
+
+        micBtn.addEventListener('click', toggleMicrophone);
+
+        async function toggleMicrophone() {
+            if (!isListening) {
+                try {
+                    await startListening();
+                } catch (error) {
+                    console.error('Error al acceder al micrófono:', error);
+                    status.textContent = 'No se pudo acceder al micrófono';
+                }
+            } else {
+                stopListening();
+            }
+        }
+
+        async function startListening() {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            microphone = audioContext.createMediaStreamSource(stream);
+            
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            microphone.connect(analyser);
+            
+            isListening = true;
+            micBtn.classList.add('active');
+            status.textContent = 'Escuchando...';
+            status.classList.add('active');
+            
+            function updateVisualization() {
+                if (!isListening) return;
+                
+                analyser.getByteFrequencyData(dataArray);
+                
+                // Calcular el volumen promedio
+                let sum = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    sum += dataArray[i];
+                }
+                const average = sum / bufferLength;
+                const volume = (average / 128) * 100;
+                
+                // Actualizar barra de volumen
+                volumeBar.style.width = volume + '%';
+                
+                // Activar efectos visuales suaves basados en el volumen
+                if (volume > 10) {
+                    animationContainer.classList.add('voice-active');
+                    
+                    // Efectos suaves en los círculos
+                    const circles = document.querySelectorAll('.circle');
+                    circles.forEach((circle, index) => {
+                        const intensity = Math.min(dataArray[index * 8] || 0, 100);
+                        const scale = 1 + (intensity / 1000);
+                        circle.style.transform = `scale(${scale})`;
+                        
+                        // Opacidad suave
+                        const opacity = 0.4 + (intensity / 500);
+                        circle.style.opacity = Math.min(opacity, 1);
+                    });
+                } else {
+                    animationContainer.classList.remove('voice-active');
+                    // Resetear suavemente
+                    const circles = document.querySelectorAll('.circle');
+                    circles.forEach((circle, index) => {
+                        circle.style.transform = 'scale(1)';
+                        circle.style.opacity = [0.8, 0.6, 0.4][index] || 0.4;
+                    });
+                }
+                
+                animationFrame = requestAnimationFrame(updateVisualization);
+            }
+            
+            updateVisualization();
+        }
+
+        function stopListening() {
+            isListening = false;
+            micBtn.classList.remove('active');
+            status.textContent = 'Toca para escuchar';
+            status.classList.remove('active');
+            volumeBar.style.width = '0%';
+            animationContainer.classList.remove('voice-active');
+            
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+            
+            if (audioContext) {
+                audioContext.close();
+            }
+            
+            // Resetear suavemente
+            const circles = document.querySelectorAll('.circle');
+            circles.forEach((circle, index) => {
+                circle.style.transform = 'scale(1)';
+                circle.style.opacity = [0.8, 0.6, 0.4][index] || 0.4;
+            });
+        }
+
+        // Efectos suaves con el mouse
+        animationContainer.addEventListener('mousemove', (e) => {
+            if (!isListening) {
+                const rect = animationContainer.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const mouseX = e.clientX - centerX;
+                const mouseY = e.clientY - centerY;
+                const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
+                const maxDistance = 150;
+                const intensity = Math.max(0, 1 - distance / maxDistance);
+                
+                if (intensity > 0.1) {
+                    animationContainer.style.transform = `scale(${1 + intensity * 0.05})`;
+                } else {
+                    animationContainer.style.transform = 'scale(1)';
+                }
+            }
+        });
+
+        animationContainer.addEventListener('mouseleave', () => {
+            if (!isListening) {
+                animationContainer.style.transform = 'scale(1)';
+            }
+        });
+    </script>
+</body>
+</html>
