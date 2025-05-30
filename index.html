@@ -97,7 +97,14 @@
             z-index: 10;
         }
 
-        .microphone-btn {
+        .status {
+            color: #666666;
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .qr-btn {
             background: #ffffff;
             border: 3px solid #e44445;
             border-radius: 50%;
@@ -110,54 +117,12 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            margin-top: 1rem;
         }
 
-        .microphone-btn:hover {
+        .qr-btn:hover {
             transform: scale(1.05);
             background: #fafafa;
-        }
-
-        .microphone-btn.active {
-            background: #e44445;
-            color: white;
-            animation: gentle-pulse 2s ease-in-out infinite;
-        }
-
-        @keyframes gentle-pulse {
-            0%, 100% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.02);
-            }
-        }
-
-        .status {
-            color: #666666;
-            font-size: 1rem;
-            text-align: center;
-            font-weight: 300;
-        }
-
-        .status.active {
-            color: #e44445;
-        }
-
-        .volume-indicator {
-            width: 150px;
-            height: 4px;
-            background: #f0f0f0;
-            border-radius: 2px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .volume-bar {
-            height: 100%;
-            background: #e44445;
-            width: 0%;
-            transition: width 0.2s ease;
-            border-radius: 2px;
         }
 
         /* Efectos de respuesta a voz */
@@ -248,27 +213,6 @@
         .close-qr:hover {
             transform: scale(1.1);
         }
-
-        .qr-btn {
-            background: #ffffff;
-            border: 3px solid #e44445;
-            border-radius: 50%;
-            width: 70px;
-            height: 70px;
-            color: #e44445;
-            font-size: 1.8rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-top: 1rem;
-        }
-
-        .qr-btn:hover {
-            transform: scale(1.05);
-            background: #fafafa;
-        }
     </style>
 </head>
 <body>
@@ -281,11 +225,7 @@
         </div>
         
         <div class="controls">
-            <button class="microphone-btn" id="micBtn">🎤</button>
-            <div class="status" id="status">Toca para hablar</div>
-            <div class="volume-indicator">
-                <div class="volume-bar" id="volumeBar"></div>
-            </div>
+            <div class="status">Habla con ERA</div>
             <button class="qr-btn" id="qrBtn">QR</button>
         </div>
     </div>
@@ -296,152 +236,34 @@
     </div>
 
     <script>
-        let audioContext;
-        let analyser;
-        let microphone;
-        let isListening = false;
-        let animationFrame;
-
-        const micBtn = document.getElementById('micBtn');
-        const status = document.getElementById('status'); 
-        const volumeBar = document.getElementById('volumeBar');
         const animationContainer = document.getElementById('animationContainer');
-
-        micBtn.addEventListener('click', toggleMicrophone);
-
-        async function toggleMicrophone() {
-            if (!isListening) {
-                try {
-                    await startListening();
-                } catch (error) {
-                    console.error('Error al acceder al micrófono:', error);
-                    status.textContent = 'No se pudo acceder al micrófono';
-                }
-            } else {
-                stopListening();
-            }
-        }
-
-        async function startListening() {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            analyser = audioContext.createAnalyser();
-            microphone = audioContext.createMediaStreamSource(stream);
-            
-            analyser.fftSize = 256;
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            
-            microphone.connect(analyser);
-            
-            isListening = true;
-            micBtn.classList.add('active');
-            status.textContent = 'Escuchando...';
-            status.classList.add('active');
-            
-            function updateVisualization() {
-                if (!isListening) return;
-                
-                analyser.getByteFrequencyData(dataArray);
-                
-                // Calcular el volumen promedio
-                let sum = 0;
-                for (let i = 0; i < bufferLength; i++) {
-                    sum += dataArray[i];
-                }
-                const average = sum / bufferLength;
-                const volume = (average / 128) * 100;
-                
-                // Actualizar barra de volumen
-                volumeBar.style.width = volume + '%';
-                
-                // Activar efectos visuales suaves basados en el volumen
-                if (volume > 10) {
-                    animationContainer.classList.add('voice-active');
-                    
-                    // Efectos suaves en los círculos
-                    const circles = document.querySelectorAll('.circle');
-                    circles.forEach((circle, index) => {
-                        const intensity = Math.min(dataArray[index * 8] || 0, 100);
-                        const scale = 1 + (intensity / 1000);
-                        circle.style.transform = `scale(${scale})`;
-                        
-                        // Opacidad suave
-                        const opacity = 0.4 + (intensity / 500);
-                        circle.style.opacity = Math.min(opacity, 1);
-                    });
-                } else {
-                    animationContainer.classList.remove('voice-active');
-                    // Resetear suavemente
-                    const circles = document.querySelectorAll('.circle');
-                    circles.forEach((circle, index) => {
-                        circle.style.transform = 'scale(1)';
-                        circle.style.opacity = [0.8, 0.6, 0.4][index] || 0.4;
-                    });
-                }
-                
-                animationFrame = requestAnimationFrame(updateVisualization);
-            }
-            
-            updateVisualization();
-        }
-
-        function stopListening() {
-            isListening = false;
-            micBtn.classList.remove('active');
-            status.textContent = 'Toca para hablar';
-            status.classList.remove('active');
-            volumeBar.style.width = '0%';
-            animationContainer.classList.remove('voice-active');
-            
-            if (animationFrame) {
-                cancelAnimationFrame(animationFrame);
-            }
-            
-            if (audioContext) {
-                audioContext.close();
-            }
-            
-            // Resetear suavemente
-            const circles = document.querySelectorAll('.circle');
-            circles.forEach((circle, index) => {
-                circle.style.transform = 'scale(1)';
-                circle.style.opacity = [0.8, 0.6, 0.4][index] || 0.4;
-            });
-        }
-
-        // Efectos suaves con el mouse
-        animationContainer.addEventListener('mousemove', (e) => {
-            if (!isListening) {
-                const rect = animationContainer.getBoundingClientRect();
-                const centerX = rect.left + rect.width / 2;
-                const centerY = rect.top + rect.height / 2;
-                const mouseX = e.clientX - centerX;
-                const mouseY = e.clientY - centerY;
-                const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
-                const maxDistance = 150;
-                const intensity = Math.max(0, 1 - distance / maxDistance);
-                
-                if (intensity > 0.1) {
-                    animationContainer.style.transform = `scale(${1 + intensity * 0.05})`;
-                } else {
-                    animationContainer.style.transform = 'scale(1)';
-                }
-            }
-        });
-
-        animationContainer.addEventListener('mouseleave', () => {
-            if (!isListening) {
-                animationContainer.style.transform = 'scale(1)';
-            }
-        });
-
-        // Funcionalidad del QR
         const qrBtn = document.getElementById('qrBtn');
         const qrContainer = document.getElementById('qrContainer');
         const closeQr = document.getElementById('closeQr');
 
+        // Efectos suaves con el mouse
+        animationContainer.addEventListener('mousemove', (e) => {
+            const rect = animationContainer.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const mouseX = e.clientX - centerX;
+            const mouseY = e.clientY - centerY;
+            const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
+            const maxDistance = 150;
+            const intensity = Math.max(0, 1 - distance / maxDistance);
+            
+            if (intensity > 0.1) {
+                animationContainer.style.transform = `scale(${1 + intensity * 0.05})`;
+            } else {
+                animationContainer.style.transform = 'scale(1)';
+            }
+        });
+
+        animationContainer.addEventListener('mouseleave', () => {
+            animationContainer.style.transform = 'scale(1)';
+        });
+
+        // Funcionalidad del QR
         qrBtn.addEventListener('click', () => {
             qrContainer.classList.add('active');
         });
